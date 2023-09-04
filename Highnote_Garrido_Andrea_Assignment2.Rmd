@@ -1,0 +1,624 @@
+---
+title: 'Predictive Analytics in-class exercise on Cancer Detection '
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: 3
+  html_document:
+    toc: yes
+    toc_depth: '3'
+    df_print: paged
+---
+\newpage
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/Applications/R Practice/Datamining Module/Data")
+```
+
+
+```{r message=FALSE,  warning=FALSE}
+# load the required libraries
+library("readxl") # used to read excel files
+library("knitr") #to knit the file
+library("dplyr") # used for data munging 
+library("FNN") # used for knn regression (knn.reg function)
+library("caret") # used for various predictive models
+library("class") # for using confusion matrix function
+library("rpart.plot") # used to plot decision tree
+library("rpart")  # used for Regression tree
+library("glmnet") # used for Lasso and Ridge regression
+library('NeuralNetTools') # used to plot Neural Networks
+library("PRROC") # top plot ROC curve
+library("ROCR") # top plot lift curve
+library("tidyverse") # will allow us to use the read_csv() function w is better than 
+library("skimr")# to se the attributes and stats of the data
+library("e1071")
+library("gdata")
+```
+
+
+# 1. Classification
+
+
+## 1.1 Data loading and transformation
+
+
+```{r }
+# Load the HighNote data set
+
+highnote_data = read_csv("/Applications/R Practice/Datamining Module/Data/Assignment 2/HN_data.csv",col_types = "nfnfnnnnnnnnnnnnnnnnnnnnfnff")
+
+highnote_data<- highnote_data[,3:28]
+
+# Get a preview of the data.
+glimpse(highnote_data)
+skim(highnote_data)
+
+```
+
+
+Clean the data and take care of the NAs
+
+#Categorical data cleaning
+```{r}
+#We will UNK to take care of the NAs in categorical columns
+highnote_data <- highnote_data %>%
+mutate(male = as.factor(ifelse(is.na(male), 'UNK', male)))%>%
+mutate(good_country = as.factor(ifelse(is.na(good_country), 'UNK', good_country)))%>%
+mutate(delta1_good_country = as.factor(ifelse(is.na(delta1_good_country), 'UNK', delta1_good_country)))
+
+```
+
+#Clean the data and take care of NAs
+```{r}
+#There are missing values/NAs in age, male, friend_cnt ,avg_friend_age, avg_friend_male,friend_country_cnt,subscriber_friend_cnt,shouts, delta1_friend_cnt, delta1_avg_friend_age, delta1_avg_friend_male, delta1_friend_country_cnt, delta1_subscriber_friend_cnt, delta1_songListened, delta1_lovedTracks, delta1_posts, delta1_playlists, delta1_shouts, tenure, good_country, delta1_good_country.
+
+#We will use median imputation to resolve the NAs so the data is not skewed.
+
+highnote_data <- highnote_data %>%
+  mutate(age = ifelse(is.na(age), 
+                                 median(age, na.rm = TRUE), 
+                                 age))
+
+
+highnote_data <- highnote_data %>%
+  mutate(friend_cnt = ifelse(is.na(friend_cnt), 
+                                 median(friend_cnt, na.rm = TRUE), 
+                                 friend_cnt))
+
+
+highnote_data <- highnote_data %>%
+  mutate(avg_friend_age = ifelse(is.na(avg_friend_age), 
+                                 median(avg_friend_age, na.rm = TRUE), 
+                                 avg_friend_age))
+
+highnote_data <- highnote_data %>%
+  mutate(subscriber_friend_cnt = ifelse(is.na(subscriber_friend_cnt), 
+                                 median(subscriber_friend_cnt, na.rm = TRUE), 
+                                 subscriber_friend_cnt))
+
+highnote_data <- highnote_data %>%
+  mutate(avg_friend_male = ifelse(is.na(avg_friend_male), 
+                                 median(avg_friend_male, na.rm = TRUE), 
+                                 avg_friend_male))
+
+highnote_data <- highnote_data %>%
+  mutate(friend_country_cnt = ifelse(is.na(friend_country_cnt), 
+                                 median(friend_country_cnt, na.rm = TRUE), 
+                                 friend_country_cnt))
+
+
+highnote_data <- highnote_data %>%
+  mutate(male = ifelse(is.na(male), 
+                                 median(male, na.rm = TRUE), 
+                                 male))
+
+highnote_data <- highnote_data %>%
+  mutate(shouts = ifelse(is.na(shouts), 
+                                 median(shouts, na.rm = TRUE), 
+                                 shouts))
+
+highnote_data <- highnote_data %>%
+  mutate(delta1_friend_cnt = ifelse(is.na(delta1_friend_cnt), 
+                                 median(delta1_friend_cnt, na.rm = TRUE), 
+                                 delta1_friend_cnt))
+
+highnote_data <- highnote_data %>%
+  mutate(delta1_avg_friend_age = ifelse(is.na(delta1_avg_friend_age), 
+                                 median(delta1_avg_friend_age, na.rm = TRUE), 
+                                 delta1_avg_friend_age))
+
+highnote_data <- highnote_data %>%
+  mutate(delta1_avg_friend_male = ifelse(is.na(delta1_avg_friend_male), 
+                                 median(delta1_avg_friend_male, na.rm = TRUE), 
+                                 delta1_avg_friend_male))
+
+highnote_data <- highnote_data %>%
+  mutate(delta1_friend_country_cnt = ifelse(is.na(delta1_friend_country_cnt), 
+                                 median(delta1_friend_country_cnt, na.rm = TRUE), 
+                                 delta1_friend_country_cnt))
+
+highnote_data <- highnote_data %>%
+  mutate(delta1_subscriber_friend_cnt = ifelse(is.na(delta1_subscriber_friend_cnt), 
+                                 median(delta1_subscriber_friend_cnt, na.rm = TRUE), 
+                                 delta1_subscriber_friend_cnt))
+
+highnote_data <- highnote_data %>%
+  mutate(delta1_songsListened = ifelse(is.na(delta1_songsListened), 
+                                 median(delta1_songsListened, na.rm = TRUE), 
+                                 delta1_songsListened))
+
+highnote_data <- highnote_data %>%
+  mutate(delta1_lovedTracks = ifelse(is.na(delta1_lovedTracks), 
+                                 median(delta1_lovedTracks, na.rm = TRUE), 
+                                 delta1_lovedTracks))
+
+highnote_data <- highnote_data %>%
+  mutate(delta1_posts = ifelse(is.na(delta1_posts), 
+                                 median(delta1_posts, na.rm = TRUE), 
+                                 delta1_posts))
+
+highnote_data <- highnote_data %>%
+  mutate(delta1_playlists = ifelse(is.na(delta1_playlists), 
+                                 median(delta1_playlists, na.rm = TRUE), 
+                                 delta1_playlists))
+
+highnote_data <- highnote_data %>%
+  mutate(delta1_shouts = ifelse(is.na(delta1_shouts), 
+                                 median(delta1_shouts, na.rm = TRUE), 
+                                 delta1_shouts))
+
+highnote_data <- highnote_data %>%
+  mutate(tenure = ifelse(is.na(tenure), 
+                                 median(tenure, na.rm = TRUE), 
+                                 tenure))
+
+skim(highnote_data)
+
+```
+
+
+Create x and Y dataframes
+
+```{r}
+# create Y and X data frames
+#we will need the y column as a vector (X to be a dataframe)
+# dplyr allows us to do this by using 'pull' instead of select
+
+high_y = highnote_data %>% pull("adopter") %>% as.factor()
+
+# exclude V1 since its a row number and include all variables. Drop delta1_good_country completely from the data since it has a too many NAs, and it won't add any value to any of the models
+high_x_all = highnote_data %>% select(-c("adopter","delta1_good_country" ))
+```
+
+
+Create Training and Testing data sets
+
+```{r }
+# 75% of the data is used for training and rest for testing
+smp_size <- floor(0.75 * nrow(high_x_all))
+
+# randomly select row numbers for training data set
+set.seed(42)
+train_ind <- sample(seq_len(nrow(high_x_all)), size = smp_size)
+
+# creating test and training sets for x
+high_x_train <- high_x_all[train_ind, ]
+high_x_test <- high_x_all[-train_ind, ]
+
+# creating test and training sets for y
+high_y_train <- high_y[train_ind]
+high_y_test <- high_y[-train_ind]
+
+# Create an empty data frame to store results from different models
+clf_results <- data.frame(matrix(ncol = 5, nrow = 0))
+names(clf_results) <- c("Model", "Accuracy", "Precision", "Recall", "F1")
+
+# Create an empty data frame to store TP, TN, FP and FN values
+cost_benefit_df <- data.frame(matrix(ncol = 5, nrow = 0))
+names(cost_benefit_df) <- c("Model", "TP", "FN", "FP", "TN")
+
+
+```
+
+
+SMOTE THE DATASET SINCE DATA IS SKEWED. This will help balance the data set.
+```{r}
+# We will use the SMOTE() function from the DMwR package to balance the training data before we build our model.
+library(DMwR)
+set.seed(1234)
+
+#create the full training dataset with X and y variable
+high_train_sm <-  cbind(high_x_train, high_y_train)
+table(high_train_sm$high_y_train)
+
+#for each case in the minority class perc.over/100 additional cases will be created
+#in our case that means x new cases of minority class will be created
+#per.under controls how many cases of the majority classes will be in the new data set
+#it is relative to the number of new cases on minority class just creates
+#perc.under = 200 will mean 200/100 X x cases from the majority class will be randomly selected
+#default value of k (nearest neighbors to impute from ) is 5
+
+#lets see what's inside the SMOTE function
+
+#View(DMwR::SMOTE)
+high_train_balanced <- SMOTE(high_y_train ~ ., data.frame(high_train_sm), perc.over = 100, perc.under = 200)
+
+table(high_train_balanced$high_y_train)
+
+# Check the proportions for the class between all 3 datasets.
+round(prop.table(table(select(highnote_data, adopter), exclude = NULL)), 4) * 100
+round(prop.table(table(high_train_balanced$high_y_train)), 4) * 100
+round(prop.table(table(high_y_test)), 4) * 100
+
+
+
+high_x_train <- high_train_balanced %>% select(-high_y_train)
+
+high_y_train_1 <- high_train_balanced %>% pull(high_y_train) %>% as.factor()
+
+#convert level of factor Y variable to YES, NO as TRUE, FALSE gives problem with some models
+
+#high_y_train_1 <- as.factor(ifelse(high_y_train_1 =="TRUE", "YES", "NO"))
+#donors_y_test_l <- as.factor(ifelse(donors_y_test =="TRUE", "YES", "NO"))
+```
+
+
+Build models with previous year data and only add the following columns: tenure, age and gender.
+```{r}
+#subset previous years data
+#create test and training for x
+high_x_trainprev <- high_x_train %>% select(c("age","tenure","male","delta1_friend_cnt","delta1_avg_friend_age",
+                                 "delta1_avg_friend_male","delta1_friend_country_cnt",
+                                 "delta1_subscriber_friend_cnt", "delta1_songsListened",
+                                 "delta1_lovedTracks", "delta1_posts", "delta1_playlists",
+                                 "delta1_shouts"))
+
+
+high_x_testprev <- high_x_test %>% select(c("age","tenure","male","delta1_friend_cnt","delta1_avg_friend_age",
+                                 "delta1_avg_friend_male","delta1_friend_country_cnt",
+                                 "delta1_subscriber_friend_cnt", "delta1_songsListened",
+                                 "delta1_lovedTracks", "delta1_posts", "delta1_playlists",
+                                 "delta1_shouts"))
+
+#sets for Y stays the same since is the predictor 
+
+
+
+```
+
+## 1.2 Decision Tree Classification 
+
+```{r }
+
+# Cross validation not working
+
+cross_validation <- trainControl(## 10-fold CV
+                                method = "repeatedcv",
+                                number = 10,
+                                ## repeated three times
+                                repeats = 3)
+# Hyperparamter tuning
+# maxdepth =  the maximum depth of the tree that will be created or
+# the length of the longest path from the tree root to a leaf.
+
+Param_Grid <-  expand.grid(maxdepth = 2:10)
+
+set.seed(1234)
+dtree_fit <- train(high_x_trainprev,
+                   high_y_train_1, 
+                   method = "rpart2",
+                   # split - criteria to split nodes
+                   parms = list(split = "gini"),
+                  tuneGrid = Param_Grid,
+                   trControl = cross_validation,
+                  # preProc -  perform listed pre-processing to predictor dataframe
+                   preProc = c("center", "scale"))
+
+# check the accuracy for different models
+dtree_fit
+```
+
+
+```{r }
+# print the final model
+dtree_fit$finalModel
+```
+
+
+```{r }
+# Plot decision tree
+prp(dtree_fit$finalModel, box.palette = "Reds", tweak = 1.2)
+```
+
+
+```{r }
+# Predict on test data
+dtree_predict_prob <- predict(dtree_fit, newdata = high_x_testprev, type = "prob")
+
+y_validation_pred_num_tree <- ifelse(dtree_predict_prob[,2] > 0.5, 1, 0)
+y_validation_pred_num_tree_factor <- as.factor(ifelse(dtree_predict_prob[,2] > 0.5, "1", "0"))
+
+```
+
+
+```{r }
+# Print Confusion matrix, Accuarcy, Sensitivity etc 
+confusionMatrix(as.factor(y_validation_pred_num_tree), as.factor(high_y_test), positive = "1")
+
+# Add results into clf_results dataframe
+x1 <- confusionMatrix(as.factor(y_validation_pred_num_tree), as.factor(high_y_test), positive = "1")[["overall"]]
+y1 <- confusionMatrix(as.factor(y_validation_pred_num_tree), as.factor(high_y_test), positive = "1")[["byClass"]]
+
+clf_results[nrow(clf_results) + 1,] <-  list(Model = "Decision Tree", 
+                                             Accuracy = round (x1[["Accuracy"]],3), 
+                                            Precision = round (y1[["Precision"]],3), 
+                                            Recall = round (y1[["Recall"]],3), 
+                                            F1 = round (y1[["F1"]],3))
+# Print Accuracy and F1 score
+
+cat("Accuarcy is ", round(x1[["Accuracy"]],3), "and F1 is ", round (y1[["F1"]],3)  )
+
+# Add results into cost_benefit_df dataframe for cost benefit analysis 
+a1 <- confusionMatrix(y_validation_pred_num_tree_factor,  as.factor(high_y_test))
+
+cost_benefit_df[nrow(cost_benefit_df) + 1,] <-  list(Model = "Decision Tree", 
+                                             TP = a1[["table"]][1], 
+                                             FN = a1[["table"]][2], 
+                                             FP = a1[["table"]][3], 
+                                             TN = a1[["table"]][4])
+
+```
+
+## 1.4 Logistic regression
+
+```{r  message=FALSE,  warning=FALSE}
+glm_fit <- train(high_x_trainprev,
+                 high_y_train_1, 
+                 method = "glm",
+                 family = "binomial",
+                 preProc = c("center", "scale"))
+```
+
+```{r }
+# Predict on test data
+glm_predict_prob <- predict(glm_fit, newdata = high_x_testprev, type="prob")
+
+y_validation_pred_num <- ifelse(glm_predict_prob[,2] > 0.5, 1, 0)
+y_validation_pred_num_factor <- as.factor(ifelse(glm_predict_prob[,2] > 0.5, "1", "0"))
+
+
+```
+
+
+```{r }
+# Print Confusion matrix, Accuarcy, Sensitivity etc 
+confusionMatrix(as.factor(y_validation_pred_num_factor), as.factor(high_y_test), positive = "1")
+
+# Add results into clf_results dataframe
+x3 <- confusionMatrix(as.factor(y_validation_pred_num_factor), as.factor(high_y_test), positive = "1")[["overall"]]
+y3 <- confusionMatrix(as.factor(y_validation_pred_num_factor), as.factor(high_y_test), positive = "1")[["byClass"]]
+
+clf_results[nrow(clf_results) + 1,] <-  list(Model = "Logistic Regression", 
+                                             Accuracy = round (x3[["Accuracy"]],3), 
+                                            Precision = round (y3[["Precision"]],3), 
+                                            Recall = round (y3[["Recall"]],3), 
+                                            F1 = round (y3[["F1"]],3))
+# Print Accuracy and F1 score
+cat("Accuarcy is ", round(x3[["Accuracy"]],3), "and F1 is ", round (y3[["F1"]],3)  )
+
+# Add results into cost_benefit_df dataframe for cost benefit analysis 
+a3 <- confusionMatrix(as.factor(y_validation_pred_num_factor), as.factor(high_y_test))
+
+#be careful about accurately pickign up the TP, FN, FP and TN
+cost_benefit_df[nrow(cost_benefit_df) + 1,] <-  list(Model = "Logistic Regression", 
+                                             TP = a3[["table"]][4], 
+                                             FN = a3[["table"]][3], 
+                                             FP = a3[["table"]][2], 
+                                             TN = a3[["table"]][1])
+```
+
+
+
+## 1.5 XGBoost classification
+
+```{r message=FALSE,  warning=FALSE}
+modelLookup("xgbTree")
+
+
+XG_clf_fit <- train(high_x_trainprev, 
+                    high_y_train_1,
+                    method = "xgbTree",
+                    preProc = c("center", "scale"))
+```
+
+```{r }
+# print the final model
+XG_clf_fit$finalModel
+```
+
+```{r }
+# Predict on test data
+# Predict on test data
+XG_clf_predict <- predict(XG_clf_fit,newdata = high_x_testprev, type="prob")
+
+#convert to factors
+y_xgvalidation_pred_num <- ifelse(XG_clf_predict[,2] > 0.5, 1, 0)
+y_xgvalidation_pred_num_factor <- as.factor(ifelse(XG_clf_predict[,2] > 0.5, "1", "0"))
+```
+
+```{r }
+# Print Confusion matrix, Accuracy, Sensitivity etc 
+confusionMatrix(as.factor(y_xgvalidation_pred_num_factor), as.factor(high_y_test), positive = "1")
+#confusionMatrix(as.factor(XG_clf_predict,  as.factor(high_y_test)))
+
+# Add results into clf_results dataframe
+x4 <- confusionMatrix(as.factor(y_xgvalidation_pred_num_factor), as.factor(high_y_test), positive = "1")[["overall"]]
+y4 <- confusionMatrix(as.factor(y_xgvalidation_pred_num_factor), as.factor(high_y_test),positive = "1")[["byClass"]]
+
+#x4 <- confusionMatrix(XG_clf_predict,  high_y_test )[["overall"]]
+#y4 <- confusionMatrix(XG_clf_predict,  high_y_test )[["byClass"]]
+
+clf_results[nrow(clf_results) + 1,] <-  list(Model = "XG Boost", 
+                                             Accuracy = round (x4[["Accuracy"]],3), 
+                                            Precision = round (y4[["Precision"]],3), 
+                                            Recall = round (y4[["Recall"]],3), 
+                                            F1 = round (y4[["F1"]],3))
+
+# Print Accuracy and F1 score
+cat("Accuarcy is ", round(x4[["Accuracy"]],3), "and F1 is ", round (y4[["F1"]],3)  )
+
+# Add results into cost_benefit_df dataframe for cost benefit analysis
+a4 <- confusionMatrix(as.factor(y_xgvalidation_pred_num_factor), as.factor(high_y_test))
+
+cost_benefit_df[nrow(cost_benefit_df) + 1,] <-  list(Model = "XG Boost", 
+                                             TP = a4[["table"]][1], 
+                                             FN = a4[["table"]][2], 
+                                             FP = a4[["table"]][3], 
+                                             TN = a4[["table"]][4])
+
+```
+
+
+**Compare Accuracy for all Classification models **
+
+```{r }
+
+print(clf_results)
+
+# Plot accuracy for all the Classification Models
+
+ggplot(clf_results %>% arrange(desc(Accuracy)) %>%
+       mutate(Model=factor(Model, levels=Model) ), 
+       aes(x = Model, y = Accuracy)) +
+  geom_bar(stat = "identity" , width=0.3, fill="steelblue") + 
+  coord_cartesian(ylim = c(0.0, 1)) +
+  geom_hline(aes(yintercept = mean(Accuracy)),
+             colour = "green",linetype="dashed") +
+  ggtitle("Compare Accuracy for all Models") +
+  theme(plot.title = element_text(color="black", size=10, hjust = 0.5))
+
+
+```
+
+Compare prediction of models by sorting the probabilities and rename columns
+```{r}
+#Decision tree
+#rename column names
+#rename column names
+colnames(dtree_predict_prob) <- c("No", "Yes")
+
+dtree_predict_prob[order(dtree_predict_prob$Yes, decreasing = TRUE),]
+
+#create if statement and new column to get count of adopters
+dtree_predict_prob$countyes<- ifelse (dtree_predict_prob$Yes > glm_predict_prob$No, 1,0)
+
+#Count number of adopters
+sum(dtree_predict_prob$countyes)
+```
+
+
+
+
+```{r}
+#GLM
+#rename column names
+colnames(glm_predict_prob) <- c("No", "Yes")
+
+glm_predict_prob[order(glm_predict_prob$Yes, decreasing = TRUE),]
+
+#create if statement and new column to get count of adopters
+glm_predict_prob$countyes<- ifelse (glm_predict_prob$Yes > glm_predict_prob$No, 1,0)
+
+#Count number of adopters
+sum(glm_predict_prob$countyes)
+
+```
+
+
+```{r}
+#XGBoost
+#rename column names
+colnames(XG_clf_predict) <- c("No", "Yes")
+
+XG_clf_predict[order(XG_clf_predict$Yes, decreasing = TRUE),]
+
+#create if statement and new column to get count of adopters
+XG_clf_predict$countyes<- ifelse (XG_clf_predict$Yes > XG_clf_predict$No, 1,0)
+
+#Count number of adopters
+sum(XG_clf_predict$countyes)
+
+```
+
+
+
+I tried troubleshooting the error with the tree, but I kept getting an error to get the yes count. I decided to select GLM because it provides the highest count yes prob than XGboost. Even thought the accuracy shows XGboost is better, I kept having a hard time running the XGboost data with all the data.
+
+Another reason, I selected for my top 1k is GLM because it gives me a good accuracy, and it doesn't take a long time to run. Even though XGboost, performed better, I decided to select GLM because it takes only 15minutes to run, and also the count of Prob YES was higher as per results in line 537
+
+
+## 2.0 Logistic regression
+#I am going to proceed to run GLM with all the data current and previous
+```{r  message=FALSE,  warning=FALSE}
+glm_fit_all <- train(high_x_train,
+                 high_y_train_1, 
+                 method = "glm",
+                 family = "binomial",
+                 preProc = c("center", "scale"))
+```
+
+
+```{r}
+# Predict on all data to get top 1k
+glm_predict_prob_all <- predict(glm_fit_all, newdata = high_x_test, type="prob")
+```
+
+
+
+Steps to create CSV for top1k
+```{r}
+#take a look at the results
+head(glm_predict_prob_all)
+```
+
+```{r}
+#create a temp table selecting the probability column yes(1) with the adopters(high_y_test)
+adopters<- cbind(glm_predict_prob_all[,2], high_y_test)
+```
+
+
+```{r}
+#rename columns
+colnames(adopters) <- c("predictedscore", "adoptertest")
+```
+
+```{r}
+#then rank by the probability them to get top 1k
+adopters1<-adopters[order(adopters[,1], decreasing = TRUE),]
+
+#to get the 1k
+adoptersfinal<-adopters1[1:1000,]
+
+#write csv
+write.csv(adoptersfinal, "/Applications/R Practice/Datamining Module/Data/Assignment 2/top1kresults.csv")
+
+#The total number of adopters according to my results on the CSV file is 304. I counted the number of 2s which represent the number of adopters.
+
+```
+
+
+#Check results with XGBOOst (THIS WAS TO SHOW THAT XGBOOST with all the variables does not work)
+## 2.0 XGBoost classification
+
+```{r message=FALSE,  warning=FALSE}
+modelLookup("xgbTree")
+
+
+XG_clf_fit_all <- train(high_x_train, 
+                        high_y_train_1,
+                        method = "xgbTree",
+                        preProc = c("center", "scale"))
+```
+
